@@ -2879,7 +2879,7 @@ function createApp() {
 
 // server/vercel-entry.ts
 await initStorage();
-var vercel_entry_default = handle(createApp());
+var fetch2 = handle(createApp());
 export {
-  vercel_entry_default as default
+  fetch2 as fetch
 };

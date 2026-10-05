@@ -12,4 +12,8 @@ import { initStorage } from './storage'
 // Node's native ESM loader can't load at runtime. Pre-bundling avoids that.
 await initStorage()
 
-export default handle(createApp())
+// A plain `export default` is treated as a Node (req, res) handler by
+// Vercel's runtime, which silently ignores the Response our Fetch-style
+// handler returns. Exporting a named `fetch` opts into the Web Fetch API
+// signature instead.
+export const fetch = handle(createApp())
