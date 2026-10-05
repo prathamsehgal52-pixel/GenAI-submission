@@ -3,10 +3,11 @@ import { Hono } from 'hono'
 import { requireUser, type Env } from '../context'
 import { db, schema } from '../db/client'
 import { AppError, notFound } from '../http'
-import { enqueue, QUEUES } from '../jobs/queue'
 import { rateLimit } from '../rateLimit'
 import { storage } from '../storage'
+import { recognizeAsset } from '../services/garments'
 import { processUpload } from '../services/images'
+import { logger } from '../logger'
 import { getOrCreateProfile } from './me'
 
 export const uploadRoutes = new Hono<Env>()
@@ -82,7 +83,14 @@ uploadRoutes.post('/', async (c) => {
           recognitionStatus: 'pending',
         })
         .returning()
-      await enqueue(QUEUES.recognize, { assetId: id }, { singletonKey: id })
+      // Runs inline (no background worker deployed): identifies garments
+      // synchronously before the upload response returns. recognizeAsset
+      // already handles AI-unavailable and transient-failure cases itself.
+      try {
+        await recognizeAsset(id)
+      } catch (err) {
+        logger.warn({ err, assetId: id }, 'inline garment recognition failed; item left for manual review')
+      }
       const [fresh] = await db.select().from(schema.imageAssets).where(eq(schema.imageAssets.id, id))
       results.push({ name, ok: true, duplicate: false, asset: await serializeAsset(fresh ?? asset) })
     } catch (err) {
@@ -134,7 +142,11 @@ uploadRoutes.post('/:id/retry', async (c) => {
   if (asset.recognitionStatus !== 'failed') throw new AppError(409, 'not_failed', 'This photo is not waiting for a retry.')
   await rateLimit(`retry:${u.id}`, 30, 3600)
   await db.update(schema.imageAssets).set({ recognitionStatus: 'pending', recognitionAttempts: 0, errorCode: null }).where(eq(schema.imageAssets.id, asset.id))
-  await enqueue(QUEUES.recognize, { assetId: asset.id }, { singletonKey: asset.id })
+  try {
+    await recognizeAsset(asset.id)
+  } catch (err) {
+    logger.warn({ err, assetId: asset.id }, 'inline garment recognition retry failed')
+  }
   return c.json({ ok: true })
 })
 

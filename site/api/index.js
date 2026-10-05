@@ -2433,8 +2433,11 @@ stylingRoutes.post("/", async (c) => {
 });
 
 // server/routes/uploads.ts
-import { and as and9, desc as desc5, eq as eq11, inArray as inArray5, or, sql as sql8 } from "drizzle-orm";
+import { and as and10, desc as desc5, eq as eq12, inArray as inArray5, or, sql as sql8 } from "drizzle-orm";
 import { Hono as Hono9 } from "hono";
+
+// server/services/garments.ts
+import { and as and9, eq as eq11 } from "drizzle-orm";
 
 // server/services/images.ts
 import { createHash as createHash2 } from "node:crypto";
@@ -2469,8 +2472,120 @@ async function processUpload(input) {
     throw new AppError(415, "unsupported_image", "We couldn\u2019t process that photo. Try exporting it as a JPEG and uploading again.");
   }
 }
+async function cropGarment(display, crop) {
+  const img = sharp2(display);
+  const { width = 0, height = 0 } = await img.metadata();
+  const pad = 0.04;
+  const x = Math.max(0, crop.x - pad);
+  const y = Math.max(0, crop.y - pad);
+  const w = Math.min(1 - x, crop.w + pad * 2);
+  const h = Math.min(1 - y, crop.h + pad * 2);
+  const region = {
+    left: Math.round(x * width),
+    top: Math.round(y * height),
+    width: Math.max(32, Math.round(w * width)),
+    height: Math.max(32, Math.round(h * height))
+  };
+  region.width = Math.min(region.width, width - region.left);
+  region.height = Math.min(region.height, height - region.top);
+  const image = await sharp2(display).extract(region).webp({ quality: 84 }).toBuffer();
+  const thumb = await sharp2(image).resize(480, 480, { fit: "inside", withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
+  return { image, thumb };
+}
 async function forVision(display) {
   return sharp2(display).resize(1024, 1024, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer();
+}
+var isValidCrop = (c) => [c.x, c.y, c.w, c.h].every((n) => Number.isFinite(n) && n >= 0 && n <= 1) && c.w >= 0.05 && c.h >= 0.05 && c.x + c.w <= 1.001 && c.y + c.h <= 1.001;
+
+// server/services/garments.ts
+var MAX_ATTEMPTS = 3;
+var clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number.isFinite(n) ? n : lo)));
+var only = (allowed, values) => [...new Set(values.filter((v) => allowed.includes(v)))];
+var text2 = (s, max2) => (s ?? "").replace(/\s+/g, " ").trim().slice(0, max2);
+function sanitizeGarment(g) {
+  const colors = g.colors.filter((c) => COLOR_FAMILIES.includes(c.family)).slice(0, 3);
+  return {
+    name: text2(g.name, 80) || text2(g.subcategory, 80),
+    category: CATEGORIES.includes(g.category) ? g.category : null,
+    subcategory: text2(g.subcategory, 60) || null,
+    colors: [...new Set(colors.map((c) => c.family))],
+    colorNames: colors.map((c) => text2(c.name, 30)).filter(Boolean),
+    pattern: PATTERNS.includes(g.pattern) ? g.pattern : "solid",
+    materialEstimate: text2(g.material_estimate, 80) || null,
+    styles: only(STYLES, g.styles),
+    occasions: only(OCCASIONS, g.occasions),
+    seasons: only(SEASONS, g.seasons),
+    formality: clamp(g.formality, 1, 5),
+    warmth: clamp(g.warmth, 1, 5),
+    details: g.details.map((d) => text2(d, 60)).filter(Boolean).slice(0, 5),
+    confidence: Math.min(1, Math.max(0, Number(g.confidence) || 0))
+  };
+}
+async function recognizeAsset(assetId) {
+  const [asset] = await db.select().from(schema_exports.imageAssets).where(eq11(schema_exports.imageAssets.id, assetId));
+  if (!asset || asset.status !== "processed" || asset.recognitionStatus === "complete") return;
+  if (!getAI()) {
+    await db.transaction(async (tx) => {
+      await tx.update(schema_exports.imageAssets).set({ recognitionStatus: "unavailable" }).where(eq11(schema_exports.imageAssets.id, assetId));
+      const existing = await tx.select({ id: schema_exports.wardrobeItems.id }).from(schema_exports.wardrobeItems).where(eq11(schema_exports.wardrobeItems.imageAssetId, assetId));
+      if (!existing.length) {
+        await tx.insert(schema_exports.wardrobeItems).values({ userId: asset.userId, imageAssetId: assetId, imageKey: asset.displayKey, thumbKey: asset.thumbKey, status: "review" });
+      }
+    });
+    return;
+  }
+  const attempt = asset.recognitionAttempts + 1;
+  await db.update(schema_exports.imageAssets).set({ recognitionStatus: "running", recognitionAttempts: attempt }).where(eq11(schema_exports.imageAssets.id, assetId));
+  try {
+    const display = await storage.get(asset.displayKey);
+    const recognition = await runAI("recognize_garments", asset.userId, (ai) => forVision(display).then((jpeg) => ai.recognizeGarments(jpeg)));
+    const garments = recognition.contains_clothing ? recognition.garments.slice(0, 6) : [];
+    const multiple = garments.length > 1;
+    const rows = [];
+    for (const g of garments) {
+      const clean = sanitizeGarment(g);
+      const crop = { x: g.box.x, y: g.box.y, w: g.box.w, h: g.box.h };
+      const id = crypto.randomUUID();
+      let imageKey = asset.displayKey;
+      let thumbKey = asset.thumbKey;
+      let storedCrop = null;
+      if (multiple && isValidCrop(crop) && crop.w * crop.h < 0.85) {
+        const cut = await cropGarment(display, crop);
+        imageKey = `users/${asset.userId}/items/${id}/image.webp`;
+        thumbKey = `users/${asset.userId}/items/${id}/thumb.webp`;
+        await storage.put(imageKey, cut.image, "image/webp");
+        await storage.put(thumbKey, cut.thumb, "image/webp");
+        storedCrop = crop;
+      }
+      const { confidence, ...attrs } = clean;
+      rows.push({
+        id,
+        userId: asset.userId,
+        imageAssetId: assetId,
+        crop: storedCrop,
+        imageKey,
+        thumbKey,
+        status: "review",
+        ...attrs,
+        aiAttributes: g,
+        aiConfidence: confidence
+      });
+    }
+    await db.transaction(async (tx) => {
+      await tx.delete(schema_exports.wardrobeItems).where(and9(eq11(schema_exports.wardrobeItems.imageAssetId, assetId), eq11(schema_exports.wardrobeItems.status, "review")));
+      if (rows.length) await tx.insert(schema_exports.wardrobeItems).values(rows);
+      else {
+        await tx.insert(schema_exports.wardrobeItems).values({ userId: asset.userId, imageAssetId: assetId, imageKey: asset.displayKey, thumbKey: asset.thumbKey, status: "review" });
+      }
+      await tx.update(schema_exports.imageAssets).set({ recognitionStatus: "complete", errorCode: rows.length ? null : "no_clothing_detected" }).where(eq11(schema_exports.imageAssets.id, assetId));
+    });
+  } catch (err) {
+    const e = err instanceof AIError ? err : null;
+    const retry = (e ? e.retryable : true) && attempt < MAX_ATTEMPTS;
+    if (!e) logger.error({ err, assetId }, "garment recognition failed");
+    await db.update(schema_exports.imageAssets).set({ recognitionStatus: retry ? "pending" : "failed", errorCode: e?.code ?? "processing_error" }).where(eq11(schema_exports.imageAssets.id, assetId));
+    if (retry) throw err;
+  }
 }
 
 // server/routes/uploads.ts
@@ -2508,7 +2623,7 @@ uploadRoutes.post("/", async (c) => {
     const name = file.name.slice(0, 120);
     try {
       const processed = await processUpload(Buffer.from(await file.arrayBuffer()));
-      const [existing] = await db.select().from(schema_exports.imageAssets).where(and9(eq11(schema_exports.imageAssets.userId, u.id), eq11(schema_exports.imageAssets.sha256, processed.sha256)));
+      const [existing] = await db.select().from(schema_exports.imageAssets).where(and10(eq12(schema_exports.imageAssets.userId, u.id), eq12(schema_exports.imageAssets.sha256, processed.sha256)));
       if (existing) {
         results.push({ name, ok: true, duplicate: true, asset: await serializeAsset(existing) });
         continue;
@@ -2531,8 +2646,12 @@ uploadRoutes.post("/", async (c) => {
         status: "processed",
         recognitionStatus: "pending"
       }).returning();
-      await enqueue(QUEUES.recognize, { assetId: id }, { singletonKey: id });
-      const [fresh] = await db.select().from(schema_exports.imageAssets).where(eq11(schema_exports.imageAssets.id, id));
+      try {
+        await recognizeAsset(id);
+      } catch (err) {
+        logger.warn({ err, assetId: id }, "inline garment recognition failed; item left for manual review");
+      }
+      const [fresh] = await db.select().from(schema_exports.imageAssets).where(eq12(schema_exports.imageAssets.id, id));
       results.push({ name, ok: true, duplicate: false, asset: await serializeAsset(fresh ?? asset) });
     } catch (err) {
       if (err instanceof AppError) results.push({ name, ok: false, error: { code: err.code, message: err.message } });
@@ -2548,10 +2667,10 @@ uploadRoutes.get("/", async (c) => {
     assetId: schema_exports.wardrobeItems.imageAssetId,
     review: sql8`count(*) filter (where ${schema_exports.wardrobeItems.status} = 'review')`.as("review"),
     active: sql8`count(*) filter (where ${schema_exports.wardrobeItems.status} <> 'review')`.as("active")
-  }).from(schema_exports.wardrobeItems).where(eq11(schema_exports.wardrobeItems.userId, u.id)).groupBy(schema_exports.wardrobeItems.imageAssetId).as("counts");
-  const rows = await db.select({ asset: schema_exports.imageAssets, review: counts.review, active: counts.active }).from(schema_exports.imageAssets).leftJoin(counts, eq11(counts.assetId, schema_exports.imageAssets.id)).where(
-    and9(
-      eq11(schema_exports.imageAssets.userId, u.id),
+  }).from(schema_exports.wardrobeItems).where(eq12(schema_exports.wardrobeItems.userId, u.id)).groupBy(schema_exports.wardrobeItems.imageAssetId).as("counts");
+  const rows = await db.select({ asset: schema_exports.imageAssets, review: counts.review, active: counts.active }).from(schema_exports.imageAssets).leftJoin(counts, eq12(counts.assetId, schema_exports.imageAssets.id)).where(
+    and10(
+      eq12(schema_exports.imageAssets.userId, u.id),
       or(inArray5(schema_exports.imageAssets.recognitionStatus, ["pending", "running", "failed"]), sql8`coalesce(${counts.review}, 0) > 0`)
     )
   ).orderBy(desc5(schema_exports.imageAssets.createdAt)).limit(100);
@@ -2561,36 +2680,40 @@ uploadRoutes.get("/", async (c) => {
 });
 uploadRoutes.post("/:id/retry", async (c) => {
   const u = c.get("user");
-  const [asset] = await db.select().from(schema_exports.imageAssets).where(and9(eq11(schema_exports.imageAssets.id, c.req.param("id")), eq11(schema_exports.imageAssets.userId, u.id)));
+  const [asset] = await db.select().from(schema_exports.imageAssets).where(and10(eq12(schema_exports.imageAssets.id, c.req.param("id")), eq12(schema_exports.imageAssets.userId, u.id)));
   if (!asset) throw notFound("That upload no longer exists.");
   if (asset.recognitionStatus !== "failed") throw new AppError(409, "not_failed", "This photo is not waiting for a retry.");
   await rateLimit(`retry:${u.id}`, 30, 3600);
-  await db.update(schema_exports.imageAssets).set({ recognitionStatus: "pending", recognitionAttempts: 0, errorCode: null }).where(eq11(schema_exports.imageAssets.id, asset.id));
-  await enqueue(QUEUES.recognize, { assetId: asset.id }, { singletonKey: asset.id });
+  await db.update(schema_exports.imageAssets).set({ recognitionStatus: "pending", recognitionAttempts: 0, errorCode: null }).where(eq12(schema_exports.imageAssets.id, asset.id));
+  try {
+    await recognizeAsset(asset.id);
+  } catch (err) {
+    logger.warn({ err, assetId: asset.id }, "inline garment recognition retry failed");
+  }
   return c.json({ ok: true });
 });
 uploadRoutes.post("/:id/describe", async (c) => {
   const u = c.get("user");
-  const [asset] = await db.select().from(schema_exports.imageAssets).where(and9(eq11(schema_exports.imageAssets.id, c.req.param("id")), eq11(schema_exports.imageAssets.userId, u.id)));
+  const [asset] = await db.select().from(schema_exports.imageAssets).where(and10(eq12(schema_exports.imageAssets.id, c.req.param("id")), eq12(schema_exports.imageAssets.userId, u.id)));
   if (!asset) throw notFound("That upload no longer exists.");
   const [item] = await db.transaction(async (tx) => {
-    await tx.update(schema_exports.imageAssets).set({ recognitionStatus: "unavailable" }).where(eq11(schema_exports.imageAssets.id, asset.id));
+    await tx.update(schema_exports.imageAssets).set({ recognitionStatus: "unavailable" }).where(eq12(schema_exports.imageAssets.id, asset.id));
     return tx.insert(schema_exports.wardrobeItems).values({ userId: u.id, imageAssetId: asset.id, imageKey: asset.displayKey, thumbKey: asset.thumbKey, status: "review" }).returning({ id: schema_exports.wardrobeItems.id });
   });
   return c.json({ itemId: item.id });
 });
 uploadRoutes.delete("/:id", async (c) => {
   const u = c.get("user");
-  const [asset] = await db.select().from(schema_exports.imageAssets).where(and9(eq11(schema_exports.imageAssets.id, c.req.param("id")), eq11(schema_exports.imageAssets.userId, u.id)));
+  const [asset] = await db.select().from(schema_exports.imageAssets).where(and10(eq12(schema_exports.imageAssets.id, c.req.param("id")), eq12(schema_exports.imageAssets.userId, u.id)));
   if (!asset) throw notFound("That upload no longer exists.");
-  const items = await db.select().from(schema_exports.wardrobeItems).where(eq11(schema_exports.wardrobeItems.imageAssetId, asset.id));
+  const items = await db.select().from(schema_exports.wardrobeItems).where(eq12(schema_exports.wardrobeItems.imageAssetId, asset.id));
   const review = items.filter((i) => i.status === "review");
   const kept = items.filter((i) => i.status !== "review");
   const keys = review.flatMap((i) => [i.imageKey, i.thumbKey]).filter((k) => !!k && k !== asset.displayKey && k !== asset.thumbKey);
   if (!kept.length) keys.push(...[asset.displayKey, asset.thumbKey].filter((k) => !!k));
   await db.transaction(async (tx) => {
     if (review.length) await tx.delete(schema_exports.wardrobeItems).where(inArray5(schema_exports.wardrobeItems.id, review.map((i) => i.id)));
-    if (!kept.length) await tx.delete(schema_exports.imageAssets).where(eq11(schema_exports.imageAssets.id, asset.id));
+    if (!kept.length) await tx.delete(schema_exports.imageAssets).where(eq12(schema_exports.imageAssets.id, asset.id));
   });
   await storage.deleteMany(keys);
   return c.json({ ok: true, removedItems: review.length });
@@ -2600,33 +2723,6 @@ uploadRoutes.delete("/:id", async (c) => {
 import { and as and11, arrayContains, asc as asc3, count as count2, desc as desc6, eq as eq13, ilike as ilike2, inArray as inArray6, or as or2, sql as sql9 } from "drizzle-orm";
 import { Hono as Hono10 } from "hono";
 import { z as z8 } from "zod";
-
-// server/services/garments.ts
-import { and as and10, eq as eq12 } from "drizzle-orm";
-var clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number.isFinite(n) ? n : lo)));
-var only = (allowed, values) => [...new Set(values.filter((v) => allowed.includes(v)))];
-var text2 = (s, max2) => (s ?? "").replace(/\s+/g, " ").trim().slice(0, max2);
-function sanitizeGarment(g) {
-  const colors = g.colors.filter((c) => COLOR_FAMILIES.includes(c.family)).slice(0, 3);
-  return {
-    name: text2(g.name, 80) || text2(g.subcategory, 80),
-    category: CATEGORIES.includes(g.category) ? g.category : null,
-    subcategory: text2(g.subcategory, 60) || null,
-    colors: [...new Set(colors.map((c) => c.family))],
-    colorNames: colors.map((c) => text2(c.name, 30)).filter(Boolean),
-    pattern: PATTERNS.includes(g.pattern) ? g.pattern : "solid",
-    materialEstimate: text2(g.material_estimate, 80) || null,
-    styles: only(STYLES, g.styles),
-    occasions: only(OCCASIONS, g.occasions),
-    seasons: only(SEASONS, g.seasons),
-    formality: clamp(g.formality, 1, 5),
-    warmth: clamp(g.warmth, 1, 5),
-    details: g.details.map((d) => text2(d, 60)).filter(Boolean).slice(0, 5),
-    confidence: Math.min(1, Math.max(0, Number(g.confidence) || 0))
-  };
-}
-
-// server/routes/wardrobe.ts
 var wardrobeRoutes = new Hono10();
 wardrobeRoutes.use("*", requireUser);
 var listQuery = z8.object({
