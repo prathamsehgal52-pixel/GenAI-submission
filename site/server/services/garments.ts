@@ -9,6 +9,27 @@ import type { RecognizedGarment } from './ai/types'
 import { cropGarment, forVision, isValidCrop } from './images'
 
 const MAX_ATTEMPTS = 3
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Drives recognizeAsset to a terminal state (complete/unavailable/failed)
+ * within this call. recognizeAsset() throws on a retryable failure expecting
+ * something to call it again later with backoff — that's normally a
+ * background worker, but there isn't one deployed here, so retry inline
+ * instead of leaving the asset stuck at 'pending' forever.
+ */
+export async function recognizeAssetWithRetries(assetId: string) {
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    try {
+      await recognizeAsset(assetId)
+      return
+    } catch (err) {
+      if (i === MAX_ATTEMPTS - 1) throw err
+      await sleep(800 * (i + 1))
+    }
+  }
+}
+
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(Number.isFinite(n) ? n : lo)))
 const only = <T extends string>(allowed: readonly T[], values: string[]) => [...new Set(values.filter((v): v is T => (allowed as readonly string[]).includes(v)))]
 const text = (s: string | null | undefined, max: number) => (s ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
