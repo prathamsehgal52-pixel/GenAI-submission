@@ -1,6 +1,7 @@
 {
   "buildCommand": "vite build && npm run build:api",
   "outputDirectory": "dist",
+  "regions": ["syd1"],
   "functions": {
     "api/index.js": {
       "maxDuration": 60
