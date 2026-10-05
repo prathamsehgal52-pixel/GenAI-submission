@@ -1,0 +1,101 @@
+import type { Look } from './types'
+
+export const looks: Look[] = [
+  {
+    id: 'office',
+    occasion: 'Work',
+    title: 'Office, softened',
+    image: '/images/look-work.jpg',
+    crop: { position: '50% 20%' },
+    metaTop: ['Tie-neck blouse &\nsailor skirt', 'Occasion\nOffice'],
+    metaBottom: ['Autumn / Winter\n2026', '3 pieces\nfrom your closet'],
+    pieces: [
+      { name: 'Tie-neck blouse', crop: { position: '50% 30%', scale: 2 } },
+      { name: 'Button-front skirt', crop: { position: '45% 88%', scale: 2.2 } },
+      { name: 'Ribbon tie', crop: { position: '52% 34%', scale: 4 } },
+    ],
+    reasons: [
+      { label: 'Contrast', body: 'Crisp white over black keeps the look sharp and easy to read.' },
+      { label: 'Proportion', body: 'A tucked blouse and high waist lengthen the leg line.' },
+      { label: 'Detail', body: 'The ribbon tie softens the tailoring without adding colour.' },
+    ],
+  },
+  {
+    id: 'weekend',
+    occasion: 'Weekend',
+    title: 'Saturday colour',
+    image: '/images/look-weekend.jpg',
+    crop: { position: '50% 25%' },
+    metaTop: ['Marigold knit &\nmid-wash denim', 'Occasion\nWeekend'],
+    metaBottom: ['Autumn / Winter\n2026', '3 pieces\nfrom your closet'],
+    pieces: [
+      { name: 'Marigold crew knit', crop: { position: '60% 50%', scale: 1.9 } },
+      { name: 'Mid-wash jeans', crop: { position: '55% 90%', scale: 2.2 } },
+      { name: 'Leather belt', crop: { position: '58% 73%', scale: 3.6 } },
+    ],
+    reasons: [
+      { label: 'Colour', body: 'One saturated colour against blue denim, with nothing competing.' },
+      { label: 'Balance', body: 'A relaxed knit over a fitted jean keeps the shape clean.' },
+      { label: 'Finish', body: 'The belt breaks up the volume and marks the waist.' },
+    ],
+  },
+  {
+    id: 'city',
+    occasion: 'City',
+    title: 'City layers',
+    image: '/images/look-city.jpg',
+    crop: { position: '56% 40%' },
+    metaTop: ['Blush coat &\nprinted scarf', 'Occasion\nCity day'],
+    metaBottom: ['Autumn / Winter\n2026', '4 pieces\nfrom your closet'],
+    pieces: [
+      { name: 'Blush wool coat', crop: { position: '57% 50%', scale: 2.2 } },
+      { name: 'Printed silk scarf', crop: { position: '55% 38%', scale: 3.4 } },
+      { name: 'Opaque tights', crop: { position: '55% 74%', scale: 3 } },
+      { name: 'Black boots', crop: { position: '55% 91%', scale: 3.4 } },
+    ],
+    reasons: [
+      { label: 'Tone', body: 'Blush and black keep a bright coat grown-up.' },
+      { label: 'Layering', body: 'The scarf pulls the coat colour up toward the face.' },
+      { label: 'Line', body: 'Dark legs and boots form one long, slim column.' },
+    ],
+  },
+  {
+    id: 'travel',
+    occasion: 'Travel',
+    title: 'Off-duty denim',
+    image: '/images/look-denim.jpg',
+    crop: { position: '50% 30%' },
+    metaTop: ['Trucker jacket &\nmarl hoodie', 'Occasion\nTravel day'],
+    metaBottom: ['Autumn / Winter\n2026', '3 pieces\nfrom your closet'],
+    pieces: [
+      { name: 'Trucker jacket', crop: { position: '58% 74%', scale: 2 } },
+      { name: 'Marl grey hoodie', crop: { position: '60% 56%', scale: 2.6 } },
+      { name: 'Clear frames', crop: { position: '57% 36%', scale: 4.5 } },
+    ],
+    reasons: [
+      { label: 'Comfort', body: 'Soft jersey under structured denim: easy for a long day.' },
+      { label: 'Texture', body: 'Brushed marl against twill keeps a casual look from feeling flat.' },
+      { label: 'Palette', body: 'Grey and indigo go with anything you pack.' },
+    ],
+  },
+  {
+    id: 'dinner',
+    occasion: 'Dinner',
+    title: 'Evening edit',
+    image: '/images/look-dinner.jpg',
+    crop: { position: '58% 30%' },
+    metaTop: ['Burgundy coat &\nblush roll-neck', 'Occasion\nDinner'],
+    metaBottom: ['Autumn / Winter\n2026', '4 pieces\nfrom your closet'],
+    pieces: [
+      { name: 'Burgundy wool coat', crop: { position: '64% 68%', scale: 1.7 } },
+      { name: 'Blush roll-neck', crop: { position: '56% 52%', scale: 2.6 } },
+      { name: 'Square sunglasses', crop: { position: '58% 33%', scale: 4 } },
+      { name: 'Leather gloves', crop: { position: '33% 50%', scale: 3.4 } },
+    ],
+    reasons: [
+      { label: 'Depth', body: 'Burgundy with blush is tonal, deep and warm.' },
+      { label: 'Polish', body: 'The roll-neck makes the coat collar look deliberate.' },
+      { label: 'Accent', body: 'Black accessories frame the colour without competing.' },
+    ],
+  },
+]

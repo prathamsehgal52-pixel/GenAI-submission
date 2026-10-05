@@ -1,0 +1,48 @@
+import type { DiscoveryItem } from './types'
+
+export const discovery: DiscoveryItem[] = [
+  {
+    id: 'poncho',
+    name: 'Fringed cotton knit poncho',
+    kind: 'Knitwear',
+    image: '/images/knit-poncho.jpg',
+    crop: { position: '50% 45%' },
+    tag: 'New season',
+    pairs: ['white-tee', 'dark-jeans', 'light-jeans', 'ankle-boots', 'leather-pouch', 'tanks'],
+    headline: 'Pairs with 6 items in your wardrobe',
+    why: 'A soft cream texture your closet lacks, and it layers over the tees and denim you already wear most.',
+  },
+  {
+    id: 'teal-tee',
+    name: 'Pocket tee in deep teal',
+    kind: 'Tees',
+    image: '/images/teal-tee.jpg',
+    crop: { position: '50% 50%', scale: 1.1 },
+    tag: 'Just landed',
+    pairs: ['camel-bomber', 'dark-jeans', 'leather-jacket', 'denim-jacket', 'ankle-boots'],
+    headline: '3 new ways to style this',
+    why: 'Teal sits opposite your cognac bomber on the colour wheel. A new colour that still works with your neutrals.',
+  },
+  {
+    id: 'pump',
+    name: 'Printed satin pointed pump',
+    kind: 'Shoes',
+    image: '/images/floral-heels.jpg',
+    crop: { position: '50% 55%' },
+    tag: 'Limited',
+    pairs: ['dark-jeans', 'white-shirt', 'black-bag', 'leather-jacket'],
+    headline: 'Pairs with 4 items in your wardrobe',
+    why: 'One printed shoe makes your simple white shirt and dark jeans feel new. It adds colour without crowding your closet.',
+  },
+  {
+    id: 'blouse',
+    name: 'Embroidered camp-collar shirt',
+    kind: 'Shirts',
+    image: '/images/floral-blouse.jpg',
+    crop: { position: '50% 35%' },
+    tag: 'New season',
+    pairs: ['light-jeans', 'pink-trousers', 'sandals', 'leather-pouch', 'camel-bomber'],
+    headline: 'Pairs with 5 items in your wardrobe',
+    why: 'It brings back your underworn blush trousers. The embroidery picks up the same soft pink.',
+  },
+]

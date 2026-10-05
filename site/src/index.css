@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --font-alt: "Unbounded", "Inter Tight", ui-sans-serif, sans-serif;
+
+  --color-page: #e9ebed;
+  --color-ink: #121212;
+  --color-ink-soft: #55595e;
+  --color-mute: #8b9096;
+  --color-line: #d4d8dc;
+  --color-ghost: #d3d6da;
+  --color-sky: #c1d3d9;
+  --color-card: #2a2a2b;
+}
+
+@property --blind {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+
+html {
+  background: var(--color-page);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  scroll-padding-top: 24px;
+}
+
+body {
+  background: var(--color-page);
+  font-family: var(--font-sans);
+  overflow-x: clip;
+}
+
+::selection {
+  background: var(--color-ink);
+  color: var(--color-page);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
+}
+
+/* Display type: tight uppercase grotesk used for all headlines */
+.display {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: -0.035em;
+  line-height: 0.92;
+}
+
+/* Glyph swap: a character rendered in the thin, wide alternate face */
+.glyph {
+  display: inline-block;
+  white-space: pre;
+  transition: opacity 120ms linear;
+}
+.glyph.is-alt {
+  font-family: var(--font-alt);
+  font-weight: 200;
+  /* Unbounded runs wide: squeeze the glyph and pull in its advance to match */
+  letter-spacing: -0.14em;
+  transform: scaleX(0.8);
+  transform-origin: left center;
+}
+.glyph.is-hidden {
+  opacity: 0;
+}
+
+/* Venetian-blind reveal: --blind goes 0 -> 1 and each stripe fills in */
+.blinds {
+  --blind: 1;
+  --stripe: 7%;
+  -webkit-mask-image: repeating-linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(var(--stripe) * var(--blind)),
+    transparent calc(var(--stripe) * var(--blind)),
+    transparent var(--stripe)
+  );
+  mask-image: repeating-linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(var(--stripe) * var(--blind)),
+    transparent calc(var(--stripe) * var(--blind)),
+    transparent var(--stripe)
+  );
+}
+
+/* Soft-edge the hero photo so its studio backdrop melts into the panel */
+.hero-fade {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 24%, #000 76%, transparent 100%),
+    linear-gradient(to bottom, transparent 0, #000 10%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, #000 24%, #000 76%, transparent 100%),
+    linear-gradient(to bottom, transparent 0, #000 10%);
+  mask-composite: intersect;
+}
+
+/* One grade across all photography so mixed sources read as one shoot */
+.grade {
+  filter: saturate(0.58) contrast(1.05) brightness(0.98);
+}
+
+.ghost-type {
+  font-family: var(--font-alt);
+  font-weight: 200;
+  text-transform: uppercase;
+  letter-spacing: -0.04em;
+  line-height: 0.9;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .blinds {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}

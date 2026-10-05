@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "armoire",
+      "credentials": [{ "accessKey": "armoire", "secretKey": "armoire-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

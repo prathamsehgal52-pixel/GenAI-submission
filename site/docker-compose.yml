@@ -1,0 +1,36 @@
+# Local development services. Production uses managed Postgres, S3-compatible
+# object storage (AWS S3, Cloudflare R2, etc.) and an SMTP provider, all
+# configured through environment variables.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: armoire
+      POSTGRES_PASSWORD: armoire
+      POSTGRES_DB: armoire
+    ports: ["5433:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./ops/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U armoire"]
+      interval: 3s
+      retries: 20
+
+  # S3-compatible object storage for local development.
+  storage:
+    image: chrislusf/seaweedfs:latest
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -master.volumeSizeLimitMB=256
+    ports: ["8333:8333"]
+    volumes:
+      - storagedata:/data
+      - ./ops/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+
+  # Captures outgoing email locally (UI at http://localhost:8025).
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["1025:1025", "8025:8025"]
+
+volumes:
+  pgdata:
+  storagedata:
