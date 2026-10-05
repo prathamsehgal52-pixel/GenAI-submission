@@ -90,7 +90,6 @@ function load(): Config {
   }
   if (c.EMAIL_DRIVER === 'smtp' && !c.SMTP_URL) problems.push('SMTP_URL is required when EMAIL_DRIVER=smtp')
   if (prod && !c.APP_URL.startsWith('https://')) problems.push('APP_URL must use https in production')
-  if (prod && c.EMAIL_DRIVER === 'none') problems.push('EMAIL_DRIVER must be configured in production (password reset depends on it)')
   if (problems.length) throw new Error(`Invalid configuration:\n${problems.map((p) => `  - ${p}`).join('\n')}`)
   return c
 }

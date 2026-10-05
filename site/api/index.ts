@@ -1,4 +1,4 @@
-import { handle } from '@hono/node-server/vercel'
+import { handle } from '@hono/vercel'
 import { createApp } from '../server/app'
 import { initStorage } from '../server/storage'
 
