@@ -38,8 +38,9 @@ const schema = z.object({
   S3_AUTO_CREATE_BUCKET: bool,
   SIGNED_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(86400).default(3600),
 
-  AI_PROVIDER: z.enum(['anthropic', 'none', 'fixture']).default('anthropic'),
+  AI_PROVIDER: z.enum(['anthropic', 'gemini', 'none', 'fixture']).default('anthropic'),
   ANTHROPIC_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
   AI_MODEL: z.string().default('claude-opus-5-5'),
   AI_TIMEOUT_MS: z.coerce.number().int().default(60_000),
   AI_DAILY_USER_LIMIT: z.coerce.number().int().default(200),
@@ -97,7 +98,10 @@ function load(): Config {
 export const config = load()
 
 export const integrations = {
-  ai: () => config.AI_PROVIDER === 'fixture' || (config.AI_PROVIDER === 'anthropic' && !!config.ANTHROPIC_API_KEY),
+  ai: () =>
+    config.AI_PROVIDER === 'fixture' ||
+    (config.AI_PROVIDER === 'anthropic' && !!config.ANTHROPIC_API_KEY) ||
+    (config.AI_PROVIDER === 'gemini' && !!config.GEMINI_API_KEY),
   ebay: () => config.PRODUCT_PROVIDERS.includes('ebay') && !!config.EBAY_CLIENT_ID && !!config.EBAY_CLIENT_SECRET,
   feed: () => config.PRODUCT_PROVIDERS.includes('feed') && config.PRODUCT_FEED_URLS.length > 0,
   email: () => config.EMAIL_DRIVER !== 'none',

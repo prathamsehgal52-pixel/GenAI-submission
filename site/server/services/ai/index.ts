@@ -5,6 +5,7 @@ import { logger } from '../../logger'
 import { markIntegration } from '../integrationStatus'
 import { AnthropicProvider } from './anthropic'
 import { FixtureProvider } from './fixture'
+import { GeminiProvider } from './gemini'
 import { AIError, type AIProvider, type AIUsage } from './types'
 
 let provider: AIProvider | null | undefined
@@ -12,7 +13,9 @@ let provider: AIProvider | null | undefined
 export function getAI(): AIProvider | null {
   if (provider !== undefined) return provider
   if (!integrations.ai()) provider = null
-  else provider = config.AI_PROVIDER === 'fixture' ? new FixtureProvider() : new AnthropicProvider()
+  else if (config.AI_PROVIDER === 'fixture') provider = new FixtureProvider()
+  else if (config.AI_PROVIDER === 'gemini') provider = new GeminiProvider()
+  else provider = new AnthropicProvider()
   return provider ?? null
 }
 
@@ -24,6 +27,9 @@ const PRICES: Record<string, [number, number]> = {
   'claude-sonnet-5-5': [2, 10],
   'claude-sonnet-5': [2, 10],
   'claude-haiku-4-5': [1, 5],
+  // Free tier (requests/day capped by Google, no billing) — $0 either way.
+  'gemini-flash-latest': [0, 0],
+  'gemini-flash-lite-latest': [0, 0],
 }
 
 export function estimateCost(u: AIUsage) {
