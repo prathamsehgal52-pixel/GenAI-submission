@@ -7,6 +7,7 @@
     "dev": "concurrently -k -n web,api,worker -c magenta,cyan,yellow \"vite\" \"tsx watch --env-file=.env server/index.ts\" \"tsx watch --env-file=.env server/worker.ts\"",
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build && npm run build:server",
     "build:server": "rm -rf dist-server && esbuild server/index.ts server/worker.ts server/db/migrate-cli.ts --bundle --platform=node --target=node22 --format=esm --outdir=dist-server --packages=external --sourcemap && rm -rf dist-server/migrations dist-server/db/migrations && cp -R server/db/migrations dist-server/migrations && cp -R server/db/migrations dist-server/db/migrations",
+    "build:api": "rm -rf api && esbuild server/vercel-entry.ts --bundle --platform=node --target=node22 --format=esm --outfile=api/index.js --packages=external",
     "start": "node --enable-source-maps dist-server/index.js",
     "worker": "node --enable-source-maps dist-server/worker.js",
     "db:migrate": "tsx --env-file=.env server/db/migrate-cli.ts",
